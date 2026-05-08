@@ -354,7 +354,6 @@ export default function StaffClient({
             <div className="grid gap-2">
               <label className="text-sm font-medium">Peran</label>
               <input type="hidden" name="role" value={formData.role} />
-
               <Combobox items={initialRoles} modal={false}>
                 <ComboboxInput
                   placeholder="Pilih atau ketik peran"

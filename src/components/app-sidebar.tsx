@@ -39,14 +39,14 @@ const items = [
   { title: "Patient Visits", url: "/patient-visits", icon: Clipboard },
 
   {
-    title: "Staff Management",
-    url: "/staff",
-    icon: Users,
-  },
-  {
     title: "Attendance",
     url: "/attendance",
     icon: Calendar,
+  },
+  {
+    title: "Staff Management",
+    url: "/staff",
+    icon: Users,
   },
   // {
   //   title: "Settings",

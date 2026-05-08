@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Calendar } from "lucide-react";
-import { format } from "date-fns";
 
 // UI Components
 import { SectionHeader } from "@/components/section-header";
