@@ -55,7 +55,7 @@ import {
 import { formatDateIndo } from "@/lib/utils/format";
 import { format } from "date-fns";
 
-export function VisitsFormDialog({
+export function VisitFormDialog({
   patientList,
   staffList,
   treatmentsList,

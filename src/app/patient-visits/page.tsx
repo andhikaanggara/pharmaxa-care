@@ -6,6 +6,7 @@ import { DataErrorState } from "@/components/data-error-state";
 
 //  type
 import type { IStaff } from "@/type/staff";
+import { IVisits } from "@/type/visits";
 import PatientVisitsClient from "./visit-client";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +22,7 @@ export default async function PatientVisitsPage() {
     redirect("/login");
   }
 
-  const [staffRes, patientRes, treatmentRes] = await Promise.all([
+  const [staffRes, patientRes, treatmentRes, visitsRes] = await Promise.all([
     supabase
       .from("staff")
       .select("id, full_name, role, is_active")
@@ -34,6 +35,11 @@ export default async function PatientVisitsPage() {
       .from("treatments")
       .select("id, treatment_name")
       .order("treatment_name", { ascending: true }),
+    supabase
+      .from("patient_visits")
+      .select(
+        "id, date, shift, patient_id, poly_destination, recipe_type, total_amount, payment, payment_methode, create_by, patients(patient_name)",
+      ),
   ]);
 
   // return message error
@@ -52,14 +58,14 @@ export default async function PatientVisitsPage() {
   const staff = (staffRes.data ?? []) as IStaff[];
   const patients = patientRes.data ?? [];
   const treatments = treatmentRes.data ?? [];
-
-  console.log(treatmentRes);
+  const visits = (visitsRes.data ?? []) as IVisits[];
 
   return (
     <PatientVisitsClient
       staffList={staff}
       patientList={patients}
       treatments={treatments}
+      visitsList={visits}
     />
   );
 }
