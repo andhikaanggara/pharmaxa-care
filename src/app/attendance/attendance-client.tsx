@@ -110,11 +110,11 @@ export default function AttendanceClient({
 
       {/* Form Dialog */}
       <AttendanceFormDialog
+        staffList={staffList}
+        roles={roles.map((r) => r.role)}
         isDialogOpsOpen={isDialogOpsOpen}
         setIsDialogOpsOpen={setIsDialogOpsOpen}
         editing={editing}
-        roles={roles.map((r) => r.role)}
-        staffList={staffList}
       />
 
       {/* Delete Alert */}

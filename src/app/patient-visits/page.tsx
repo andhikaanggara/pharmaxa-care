@@ -38,7 +38,7 @@ export default async function PatientVisitsPage() {
     supabase
       .from("patient_visits")
       .select(
-        "id, date, shift, patient_id, poly_destination, recipe_type, total_amount, payment, payment_methode, create_by, patients(patient_name)",
+        "id, date, shift, patient_id, poly_destination, recipe_type, total_amount, payment, payment_methode, create_by, patients(patient_name, mr_number, gender, birth_date, address))",
       )
       .returns<IVisits[]>(),
   ]);

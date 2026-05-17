@@ -34,12 +34,11 @@ export default function VisitClient({
   const [isOpen, setIsOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
-  const [isDialogOpsOpen, setIsDialogOpsOpen] = useState(false);
   const [isAlertDeleteOpen, setIsAlertDeleteOpen] = useState(false);
 
   const handleOpenEdit = (row: any) => {
     setEditing(row);
-    setIsDialogOpsOpen(true);
+    setIsOpen(true);
   };
 
   const [date, setDate] = React.useState<DateRange | undefined>({
@@ -70,7 +69,10 @@ export default function VisitClient({
         description="Data kunjungan dan transaksi hari ini."
         icon={ClipboardList}
         actionLabel="Registrasi Pasien"
-        onAction={() => setIsOpen(true)}
+        onAction={() => {
+          setEditing(null);
+          setIsOpen(true);
+        }}
       />
 
       <Field className="mx-auto w-60">
@@ -127,6 +129,7 @@ export default function VisitClient({
         treatmentsList={treatments}
         isOpen={isOpen}
         setIsOpen={setIsOpen}
+        editing={editing}
       />
 
       <DeleteConfirmDialog
