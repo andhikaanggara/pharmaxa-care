@@ -1,18 +1,11 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import {
-  CalendarIcon,
-  ClipboardList,
-  Plus,
-  Search,
-  Trash2,
-  UserPlus,
-} from "lucide-react";
+import { CalendarIcon, ClipboardList } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
 import { VisitFormDialog } from "./_componenets/visit-from-dialog";
 import { VisitListDesktop } from "./_componenets/visit-list-desktop";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { Field } from "@/components/ui/field";
 import {
   Popover,
   PopoverContent,

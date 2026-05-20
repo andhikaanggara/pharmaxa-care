@@ -49,7 +49,6 @@ export async function createStaff(
     revalidatePath("/staff");
     return { ok: true };
   } catch (err: any) {
-    console.error("Unexpected Error:", err);
     return {
       error: `Terjadi kesalahan tak terduga. Silakan coba lagi. ${err.message}`,
     };

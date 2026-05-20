@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { formatDateIndo } from "@/lib/utils/format";
 import { startTransition } from "react";
-import { delleteVisits } from "../actions";
+import { deleteVisits } from "../actions";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
@@ -30,7 +30,7 @@ export function DeleteConfirmDialog({
   const onConfirmDelete = () => {
     if (!deleteTarget) return;
     startTransition(async () => {
-      const res = await delleteVisits(deleteTarget.id);
+      const res = await deleteVisits(deleteTarget.id);
       if (res.error) toast.error(res.error);
       else {
         setIsAlertDeleteOpen(false);

@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { NumericFormat } from "react-number-format";
-import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
 // UI Component
@@ -16,12 +15,13 @@ import {
 } from "@/components/ui/dialog";
 
 // Action
-import { createPatientAndVisit } from "../actions";
+import { createPatinet, createTreatments, createVisits } from "../actions";
 import { useForm } from "react-hook-form";
 import { format } from "date-fns";
 import { PatientFormSection } from "./form-section/patient-form-section";
 import { VisitFormSection } from "./form-section/visit-form-section";
 import { TreatmentFormSelection } from "./form-section/treatment-form-section";
+import { toast } from "sonner";
 
 export function VisitFormDialog({
   patientList,
@@ -42,7 +42,6 @@ export function VisitFormDialog({
     setValue,
     control,
     reset,
-    getValues,
     formState: { errors },
   } = useForm({
     defaultValues: {
@@ -54,10 +53,11 @@ export function VisitFormDialog({
         birth_date: "",
         phone: "",
         address: "",
-        isNewPatient: false,
+        isNewPatient: true,
       },
       // visits
       visits: {
+        id: "",
         date: "",
         shift: "",
         patient_id: "",
@@ -69,54 +69,11 @@ export function VisitFormDialog({
         create_by: "",
       },
       // treatment
-      treatments: [
-        {
-          visits_id: "",
-          treatment_name_id: "",
-          treatment_name: "",
-          operation_staff_id: "",
-          operation_staff: "",
-          assistant_staff_id: "",
-          assistant_staff: "",
-        },
-      ],
+      treatments: [],
     },
   });
 
-  const isNewPatient = watch("patients.isNewPatient");
   const [selectedCard, setSelectedCard] = useState(false);
-
-  const handleSubmitPatient = async (data: any) => {
-    startTransition(async () => {
-      const playload = {
-        ...data,
-        isEdit: !!editing,
-        visitId: editing?.visits?.id,
-      };
-
-      const res = await createPatientAndVisit(playload);
-
-      if (res.error) {
-        toast.error(res.error);
-      } else {
-        toast.success(
-          editing ? "Data berhasil diperbarui" : "Data berhasil disimpan",
-        );
-        setIsOpen(false);
-        reset();
-        router.refresh();
-      }
-    });
-  };
-
-  // --- Helper ---
-  const generateMRNumber = () => {
-    const now = new Date();
-    const year = now.getFullYear().toString().slice(-2);
-    const month = (now.getMonth() + 1).toString().padStart(2, "0");
-    const nextNumber = (patientList.length + 1).toString().padStart(3, "0");
-    return `${year}${month}${nextNumber}`;
-  };
 
   const getShiftDefault = () => {
     const h = new Date().getHours();
@@ -126,65 +83,84 @@ export function VisitFormDialog({
   };
 
   useEffect(() => {
-    if (isNewPatient) {
-      setValue("patients.mr_number", generateMRNumber());
+    if (isOpen) {
+      setValue("visits.date", format(new Date(), "yyyy-MM-dd"));
+      setValue("visits.shift", getShiftDefault());
     }
-  }, [isNewPatient]);
+  }, [isOpen]);
 
-  useEffect(() => {
-    if (isOpen && editing) {
-      console.log("Data yang mau diedit:", editing);
-      reset({
-        patients: {
-          id: editing.patients.patient_id,
-          patient_name: editing.patients.patient_name,
-          mr_number: editing.patients.mr_number,
-          gender: editing.patients.gender,
-          birth_date: editing.patients.birth_date,
-          phone: editing.patients.phone,
-          address: editing.patients.address,
-          isNewPatient: false,
-        },
-        visits: {
-          ...editing.visits,
-          date: editing.visits?.date
-            ? format(new Date(editing.visits.date), "yyyy-MM-dd")
-            : "",
-          poly_destination: editing.patients.poly_destination,
-        },
-        treatments:
-          editing.treatments?.length > 0
-            ? editing.treatments
-            : [
-                {
-                  visits_id: "",
-                  treatment_name_id: "",
-                  treatment_name: "",
-                  operation_staff_id: "",
-                  operation_staff: "",
-                  assistant_staff_id: "",
-                  assistant_staff: "",
-                },
-              ],
-      });
-      if (editing.patient_id) {
-        setSelectedCard(true);
-      } else if (isOpen && !editing) {
-        reset({
-          patients: { isNewPatient: false, patient_name: "" },
-          visits: {
-            date: format(new Date(), "yyyy-MM-dd"),
-            shift: getShiftDefault(),
-            poly_destination: "Umum",
-            recipe_type: "Biasa",
-            payment_methode: "Cash",
-          },
-          treatments: [{ treatment_name: "" }],
-        });
-        setSelectedCard(false);
+  const handleSubmitPatient = async (data: any) => {
+    console.log("Data yang akan disubmit:", data);
+    startTransition(async () => {
+      try {
+        let currentPatientId = data.visits.patient_id;
+        let currentVisitsId = data.visits.id;
+        // --- handle create patient ---
+        if (data.patients.isNewPatient && !currentPatientId) {
+          const patientRes = await createPatinet(data.patients);
+          if (patientRes.error) {
+            toast.error(patientRes.error);
+            return;
+          }
+          // inset patient id to visits
+          currentPatientId = patientRes?.id;
+          setValue("patients.id", currentPatientId);
+          setValue("visits.patient_id", currentPatientId);
+        }
+
+        // --- handle create visits ---
+        const visitPayload = {
+          ...data.visits,
+          patient_id: currentPatientId,
+        };
+        const visitsRes = await createVisits(visitPayload);
+
+        if (visitsRes?.error) {
+          toast.error(visitsRes?.error);
+          return;
+        }
+        // inset visit id to treatments
+        currentVisitsId = visitsRes?.id;
+        if (currentVisitsId) {
+          setValue("visits.id", currentVisitsId);
+        }
+
+        // --- handle create treatments ---
+        // clear empty treatments
+        const validTreatments =
+          data.treatments?.filter(
+            (t: any) =>
+              t &&
+              t.treatment_name_id !== "" &&
+              t.treatment_name_id !== undefined,
+          ) || [];
+
+        if (validTreatments.length > 0) {
+          // map tretment with visit_id
+          const finalizedTreatments = validTreatments.map((t: any) => ({
+            ...t,
+            visit_id: currentVisitsId,
+          }));
+
+          const treatmentsRes = await createTreatments(finalizedTreatments);
+          if (treatmentsRes?.error) {
+            toast.error(treatmentsRes.error);
+            return;
+          }
+        }
+        // --- Selesai dengan Sukses ---
+        toast.success(
+          editing ? "Data berhasil diperbarui" : "Data berhasil disimpan",
+        );
+        setIsOpen(false);
+        reset();
+        router.refresh();
+      } catch (error) {
+        console.error("Submit Error:", error);
+        toast.error("Terjadi kesalahan sistem saat menyimpan data.");
       }
-    }
-  }, [isOpen, editing, reset]);
+    });
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -213,13 +189,16 @@ export function VisitFormDialog({
               reset={reset}
               watch={watch}
               setValue={setValue}
-              isNewPatient={isNewPatient}
               register={register}
               control={control}
             />
 
             {/* Visits */}
-            <VisitFormSection control={control} />
+            <VisitFormSection
+              control={control}
+              setValue={setValue}
+              watch={watch}
+            />
 
             {/* Treatments */}
             <TreatmentFormSelection

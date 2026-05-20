@@ -1,13 +1,6 @@
+import { FormCombobox } from "@/components/form-combobox";
 import { Button } from "@/components/ui/button";
-import {
-  Combobox,
-  ComboboxCollection,
-  ComboboxContent,
-  ComboboxGroup,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-} from "@/components/ui/combobox";
+import { ComboboxItem } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import {
   Item,
@@ -26,6 +19,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { formatDateIndo } from "@/lib/utils/format";
 import { UserPlus } from "lucide-react";
+import { useEffect } from "react";
 import { Controller } from "react-hook-form";
 import { PatternFormat } from "react-number-format";
 
@@ -33,123 +27,114 @@ export function PatientFormSection({
   patientList,
   selectedCard,
   setSelectedCard,
-  reset,
   watch,
   setValue,
-  isNewPatient,
   register,
   control,
 }: any) {
-  const isSelectPatient = watch("patients.patient_name");
+  const isNewPatient = watch("patients.isNewPatient");
+
+  // --- Helper ---
+  const generateMRNumber = () => {
+    const now = new Date();
+    const year = now.getFullYear().toString().slice(-2);
+    const month = (now.getMonth() + 1).toString().padStart(2, "0");
+    const nextNumber = (patientList.length + 1).toString().padStart(3, "0");
+    return `${year}${month}${nextNumber}`;
+  };
+
+  // --- auto fill MR Number ---
+  useEffect(() => {
+    if (isNewPatient) {
+      setValue("patients.mr_number", generateMRNumber());
+    }
+  }, [isNewPatient]);
 
   return (
     <section>
-      {selectedCard ? (
-        <div className="p-4 border border-border bg-background rounded-xl shadow-sm space-y-3">
-          <div className="flex justify-between items-center border-b pb-2">
-            <div className="font-bold text-xl">
-              {watch("patients.patient_name")}
-            </div>
-            <div className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-bold">
-              {watch("patients.mr_number")}
-            </div>
-          </div>
-          <div className="flex flex-col gap-2 text-xm">
-            <div className="grid grid-cols-2">
-              <span className="font-medium truncate">
-                {watch("patients.gender")}
-              </span>
-              <span className="font-medium truncate">
-                {formatDateIndo(watch("patients.birth_date"))}
-              </span>
-            </div>
-            <div className="flex flex-col">
-              <span className="font-medium ">{watch("patients.address")}</span>
-            </div>
-          </div>
-          <div className="flex gap-2 pt-2">
+      <FormCombobox
+        name="visits.patient_id"
+        control={control}
+        label="Cari Pasien"
+        items={patientList}
+        displayKey="patient_name"
+        placeholder="Nama Sesuai KTP"
+        onSelect={(item) => {
+          setValue("visits.patient_id", item.id);
+          setValue("patients.id", item.id);
+          setValue("patients.isNewPatient", false);
+          setSelectedCard(true);
+        }}
+        onBlur={(e) => setValue("patients.patient_name", e.target.value)}
+        renderItem={(item) => (
+          <Item size="xs" className="p-0 cursor-pointer">
+            <ItemContent>
+              <ItemTitle>{item.patient_name}</ItemTitle>
+              <ItemDescription>
+                {formatDateIndo(item.birth_date)}
+              </ItemDescription>
+              <ItemDescription className="line-clamp-1">
+                {item.address}
+              </ItemDescription>
+            </ItemContent>
+          </Item>
+        )}
+        appendContent={
+          <ComboboxItem className="p-0 flex justify-center">
             <Button
-              variant="outline"
+              type="button"
+              variant="ghost"
               size="sm"
-              className="w-full"
               onClick={() => {
-                (setSelectedCard(false), reset());
+                (setValue("patients.isNewPatient", true),
+                  setSelectedCard(false));
+                setValue("visits.patient_id", "");
+                setValue("patients.id", "");
               }}
+              className="w-full text-xs cursor-pointer py-2"
             >
-              Ganti Pasien
+              <UserPlus className="w-3 h-3 mr-1" /> Tambah Pasien Baru
             </Button>
+          </ComboboxItem>
+        }
+      />
+      {selectedCard ? (
+        <div className="p-4 border border-border bg-background rounded-b-xl shadow-sm space-y-3 flex flex-col gap-2 text-xm">
+          <div className="flex justify-between items-center">
+            <span className="font-medium truncate">
+              {
+                patientList.find(
+                  (p: any) => p.id === watch("visits.patient_id"),
+                )?.gender
+              }
+            </span>
+            <span className="font-medium truncate">
+              {formatDateIndo(
+                patientList.find(
+                  (p: any) => p.id === watch("visits.patient_id"),
+                )?.birth_date,
+              )}
+            </span>
+            <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-bold">
+              {
+                patientList.find(
+                  (p: any) => p.id === watch("visits.patient_id"),
+                )?.mr_number
+              }
+            </span>
+          </div>
+          <div className="flex flex-col">
+            <span className="font-medium ">
+              {
+                patientList.find(
+                  (p: any) => p.id === watch("visits.patient_id"),
+                )?.address
+              }
+            </span>
           </div>
         </div>
       ) : (
-        <div className="flex flex-col gap-4">
-          {/* nama patient */}
-          <div className="flex flex-col gap-1 ">
-            <Label>Cari Pasien</Label>
-            <Combobox items={patientList}>
-              <ComboboxInput
-                placeholder="Nama Sesuai KTP"
-                required
-                showClear
-                onChange={(e) =>
-                  setValue("patients.patient_name", e.target.value)
-                }
-                value={isSelectPatient}
-              />
-              <ComboboxContent>
-                <ComboboxList>
-                  <ComboboxGroup>
-                    <ComboboxCollection>
-                      {(item) => (
-                        <ComboboxItem
-                          key={item.id}
-                          value={item.patient_name}
-                          onClick={() => {
-                            setValue("patients.id", item.id);
-                            setValue(
-                              "patients.patient_name",
-                              item.patient_name,
-                            );
-                            setValue("patients.birth_date", item.birth_date);
-                            setValue("patients.gender", item.gender);
-                            setValue("patients.mr_number", item.mr_number);
-                            setValue("patients.address", item.address);
-                            setValue("patients.isNewPatient", false);
-                            setSelectedCard(true);
-                          }}
-                        >
-                          <Item size="xs" className="p-0 cursor-pointer">
-                            <ItemContent>
-                              <ItemTitle>{item.patient_name}</ItemTitle>
-                              <ItemDescription>
-                                {formatDateIndo(item.birth_date)}
-                              </ItemDescription>
-                              <ItemDescription className="line-clamp-1">
-                                {item.address}
-                              </ItemDescription>
-                            </ItemContent>
-                          </Item>
-                        </ComboboxItem>
-                      )}
-                    </ComboboxCollection>
-                  </ComboboxGroup>
-                  <ComboboxGroup>
-                    <ComboboxItem className=" p-0 flex justify-center">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setValue("patients.isNewPatient", true)}
-                        className="text-xs cursor-pointer"
-                      >
-                        <UserPlus className="w-3 h-3 mr-1" />{" "}
-                        {`Tambah Pasien ${isSelectPatient}`}
-                      </Button>
-                    </ComboboxItem>
-                  </ComboboxGroup>
-                </ComboboxList>
-              </ComboboxContent>
-            </Combobox>
-          </div>
+        <div className="flex flex-col gap-4 mt-4">
           {/* input patient */}
           {isNewPatient && (
             <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-top-2">
