@@ -88,7 +88,11 @@ export default function LoginClient() {
             onChange={(e) => setPassword(e.target.value)}
             required
           />
-          <Button type="submit" className="cursor-pointer w-full" disabled={loading}>
+          <Button
+            type="submit"
+            className="cursor-pointer w-full"
+            disabled={loading}
+          >
             {loading ? "Authenticating..." : "Login"}
           </Button>
         </form>
@@ -98,7 +102,7 @@ export default function LoginClient() {
             <span className="w-full border-t" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-background px-2 text-muted-foreground">Or</span>
+            <span className="bg-card px-2 text-muted-foreground">Or</span>
           </div>
         </div>
 

@@ -4,15 +4,22 @@ import * as React from "react";
 import {
   Calendar,
   Home,
-  Users,
-  Settings,
   LogOut,
   HeartPulse,
   Clipboard,
+  ChevronRight,
+  Database,
+  Wallet,
+  Pill,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useSidebar } from "@/components/ui/sidebar";
+import {
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+  useSidebar,
+} from "@/components/ui/sidebar";
 
 import {
   Sidebar,
@@ -28,32 +35,57 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { createClient } from "@/utils/supabase/client";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "./ui/collapsible";
 
-// Menu items.
-const items = [
-  // {
-  //   title: "Dashboard",
-  //   url: "", //"/dashboard"
-  //   icon: Home,
-  // },
-  { title: "Patient Visits", url: "/patient-visits", icon: Clipboard },
+const data = {
+  navSimple: [
+    {
+      title: "Dashboard",
+      url: "",
+      icon: Home,
+    },
+    { title: "Patient Visits", url: "/patient-visits", icon: Clipboard },
 
-  {
-    title: "Attendance",
-    url: "/attendance",
-    icon: Calendar,
-  },
-  {
-    title: "Staff Management",
-    url: "/staff",
-    icon: Users,
-  },
-  // {
-  //   title: "Settings",
-  //   url: "", //"/settings"
-  //   icon: Settings,
-  // },
-];
+    {
+      title: "Attendance",
+      url: "/attendance",
+      icon: Calendar,
+    },
+    {
+      title: "Drug Defect",
+      url: "",
+      icon: Pill,
+    },
+  ],
+  navDropDown: [
+    {
+      title: "Finance",
+      url: "",
+      icon: Wallet,
+      isActive: false,
+      items: [
+        { title: "Receivables", url: "" },
+        { title: "Payables", url: "" },
+      ],
+    },
+    {
+      title: "Master",
+      url: "",
+      icon: Database,
+      isActive: false,
+      items: [
+        { title: "Patients", url: "" },
+        { title: "Staff", url: "/staff" },
+        { title: "Roles", url: "" },
+        { title: "Treatments", url: "" },
+      ],
+    },
+  ],
+};
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { setOpenMobile, isMobile } = useSidebar();
@@ -105,7 +137,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarGroupLabel>Main Menu</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map((item) => (
+              {data.navSimple.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
@@ -119,6 +151,38 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
+              ))}
+
+              {data.navDropDown.map((item) => (
+                <Collapsible
+                  key={item.title}
+                  asChild
+                  defaultOpen={item.isActive}
+                  className="group/collapsible"
+                >
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton tooltip={item.title}>
+                        {item.icon && <item.icon />}
+                        <span>{item.title}</span>
+                        <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        {item.items?.map((subItem) => (
+                          <SidebarMenuSubItem key={subItem.title}>
+                            <SidebarMenuSubButton asChild>
+                              <a href={subItem.url}>
+                                <span>{subItem.title}</span>
+                              </a>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        ))}
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                </Collapsible>
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
