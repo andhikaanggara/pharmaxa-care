@@ -12,7 +12,7 @@ import {
   ComboboxItem,
 } from "@/components/ui/combobox";
 import { Button } from "./ui/button";
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 
 interface FormComboboxProps<T, TFormValues extends FieldValues> {
   control: Control<TFormValues>;
@@ -43,23 +43,8 @@ export function InputCombobox<T, TFormValues extends FieldValues>({
       name={name}
       control={control}
       render={({ field, fieldState }) => {
-        useEffect(() => {
-          if (field.value) {
-            const initialItem = items.find(
-              (item) => String(item[itemValueKey]) === String(field.value),
-            );
-            if (initialItem) {
-              setSearchQuery(String(initialItem[itemDisplayKey]));
-            }
-          } else {
-            setSearchQuery("");
-          }
-        }, [field.value, items, itemValueKey, itemDisplayKey]);
-
-        const filteredItems = items.filter((item) =>
-          String(item[itemDisplayKey])
-            .toLowerCase()
-            .includes(searchQuery.toLowerCase()),
+        const selectedItem = items.find(
+          (item) => String(item[itemValueKey]) === String(field.value),
         );
 
         return (
@@ -68,35 +53,46 @@ export function InputCombobox<T, TFormValues extends FieldValues>({
             <div
               className={showAddButton ? "grid grid-cols-8 gap-2" : "w-full"}
             >
-              <Combobox
-                items={filteredItems}
-                value={field.value}
-                onValueChange={(val) => {
-                  field.onChange(val);
+              <Combobox items={items} modal={false}>
+                <div className="relative flex items-center">
+                  <ComboboxInput
+                    id={field.name}
+                    value={
+                      selectedItem ? String(selectedItem[itemDisplayKey]) : ""
+                    }
+                    aria-invalid={fieldState.invalid}
+                    className="col-span-7 w-full"
+                  />
+                  {field.value && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        field.onChange(""); // Paksa React Hook Form mengosongkan state field ini
+                      }}
+                      className="absolute right-2.5 p-1 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors mr-6"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
 
-                  const selected = items.find(
-                    (item) => String(item[itemValueKey]) === String(val),
-                  );
-                  if (selected) {
-                    setSearchQuery(String(selected[itemDisplayKey]));
-                  }
-                }}
-              >
-                <ComboboxInput
-                  id={field.name}
-                  aria-invalid={fieldState.invalid}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="col-span-7"
-                />
                 <ComboboxContent>
                   <ComboboxEmpty>{`No ${label} found`}</ComboboxEmpty>
                   <ComboboxList>
                     {(item) => {
                       const val = String(item[itemValueKey]);
                       const lbl = String(item[itemDisplayKey]);
+
                       return (
-                        <ComboboxItem key={val} value={val}>
+                        <ComboboxItem
+                          key={val}
+                          value={lbl}
+                          onClick={() => {
+                            field.onChange(val);
+                          }}
+                        >
                           {lbl}
                         </ComboboxItem>
                       );

@@ -8,7 +8,7 @@ import { DataErrorState } from "@/components/feedback/data-error-state";
 //  type
 import type { IRole } from "@/type/role";
 import type { IStaff } from "@/type/staff";
-import type { IAttendanceRow } from "@/type/attendance";
+import { AttendanceSchema } from "./_components/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -74,7 +74,7 @@ export default async function AttendancePage() {
 
   const roles = (roleRes.data ?? []) as IRole[];
   const staff = ((staffRes.data as any) ?? []) as IStaff[];
-  const rows = ((attendanceRes.data as any) ?? []) as IAttendanceRow[];
+  const rows = ((attendanceRes.data as any) ?? []) as AttendanceSchema[];
 
   return (
     <AttendanceClient

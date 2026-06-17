@@ -77,7 +77,7 @@ const data = {
       icon: Database,
       isActive: true,
       items: [
-        { title: "Patients", url: "/master-patients" },
+        // { title: "Patients", url: "/master-patients" },
         { title: "Staff", url: "/master-staff" },
         { title: "Roles", url: "/master-roles" },
         // { title: "Treatments", url: "/master-treatments" },

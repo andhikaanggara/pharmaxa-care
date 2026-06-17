@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState, useTransition } from "react";
 import { format } from "date-fns";
 
 import { createAttendance, updateAttendance } from "../actions";
@@ -24,29 +24,33 @@ import {
   ComboboxList,
 } from "@/components/ui/combobox";
 import { IStaff } from "@/type/staff";
-import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { attendanceSchema, AttendanceSchema } from "./schema";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { toast } from "sonner";
+import { InputCombobox } from "@/components/input-combobox";
 
-type Shift = "Pagi" | "Sore" | "Malam";
+// 1. Definisikan Zod Schema Dinamis agar sesuai dengan jumlah peran/roles di klinik
+const attendanceFormSchema = z.object({
+  date: z.string().min(1, "Tanggal wajib diisi"),
+  shift: z.enum(["Pagi", "Sore", "Malam"]),
+  // Menampung ID staff secara dinamis berbasis nama peran (Role Name)
+  rolesInput: z.record(z.string(), z.string().optional()),
+});
 
-type EditingAttendance = { date: string; shift: string } & Record<
-  string,
-  string
->;
+type AttendanceFormValues = z.infer<typeof attendanceFormSchema>;
 
 interface AttendanceFormProps {
   isDialogOpsOpen: boolean;
   setIsDialogOpsOpen: (open: boolean) => void;
-  editing: EditingAttendance | null;
+  editing: ({ date: string; shift: string } & Record<string, string>) | null;
   roles: string[];
   staffList: IStaff[];
 }
 
-const SHIFTS: Shift[] = ["Pagi", "Sore", "Malam"];
-
-const FORM_ID = "attendanceForm";
-
-function getShiftDefault(): Shift {
+function getShiftDefault() {
   const h = new Date().getHours();
   if (h >= 7 && h < 14) return "Pagi";
   if (h >= 14 && h < 21) return "Sore";
@@ -61,82 +65,108 @@ export function AttendanceForm({
   staffList,
 }: AttendanceFormProps) {
   const isEditMode = editing !== null;
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const SHIFTS = ["Pagi", "Sore", "Malam"];
 
-  const [dateStr, setDateStr] = useState("");
-  const [shift, setShift] = useState<Shift>(getShiftDefault);
-  const [roleSelections, setRoleSelections] = useState<
-    Record<string, { id: string; name: string } | undefined>
-  >({});
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // 2. Inisialisasi React Hook Form
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    reset,
+    control,
+    formState: { errors },
+  } = useForm<AttendanceFormValues>({
+    resolver: zodResolver(attendanceFormSchema),
+    defaultValues: {
+      date: format(new Date(), "yyyy-MM-dd"),
+      shift: getShiftDefault() as "Pagi" | "Sore" | "Malam",
+      rolesInput: {},
+    },
+  });
 
-  const { isPending, handleOpenChange, handleSubmit } =
-    useFormDialog<EditingAttendance>({
-      isOpen: isDialogOpsOpen,
-      editData: editing,
-      onOpen: () => {
-        setErrorMsg(null);
-        if (isEditMode) {
-          setDateStr(editing.date);
-          setShift(editing.shift as Shift);
-          setRoleSelections(
-            buildInitialRoleSelections(editing, roles, staffList),
-          );
-        } else {
-          setDateStr(format(new Date(), "yyyy-MM-dd"));
-          setShift(getShiftDefault());
-          setRoleSelections({});
-        }
-      },
-      onReset: () => {
-        setDateStr("");
-        setShift(getShiftDefault());
-        setRoleSelections({});
-        setErrorMsg(null);
-      },
-      onOpenChange: setIsDialogOpsOpen,
+  const watchedDate = watch("date");
+  const watchedShift = watch("shift");
+  const watchedRolesInput = watch("rolesInput") || {};
+
+  // 3. Sinkronisasi Data Saat Dialog Buka/Edit Mode
+  useEffect(() => {
+    if (isDialogOpsOpen) {
+      if (isEditMode && editing) {
+        // ambil data id staff per role dari object editing
+        const initialRolesInput: Record<string, string> = {};
+        roles.forEach((role) => {
+          if (editing[role]) {
+            initialRolesInput[role] = editing[role];
+          }
+        });
+        reset({
+          date: editing.date,
+          shift: editing.shift as "Pagi" | "Sore" | "Malam",
+          rolesInput: initialRolesInput,
+        });
+      } else {
+        reset({
+          date: format(new Date(), "yyyy-MM-dd"),
+          shift: getShiftDefault() as "Pagi" | "Sore" | "Malam",
+          rolesInput: {},
+        });
+      }
+    }
+  }, [isDialogOpsOpen, isEditMode, editing, roles, reset]);
+
+  // 4. Proses Submit Form
+  const onSubmit = (values: AttendanceFormValues) => {
+    // Bangun FormData untuk dikirim ke Server Action bawaan Cursor Anda
+    const fd = new FormData();
+    fd.append("date", values.date);
+    fd.append("shift", values.shift);
+
+    Object.values(values.rolesInput).forEach((staffId) => {
+      if (staffId) fd.append("staff_id", staffId);
     });
 
-  const onFormSubmit = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setErrorMsg(null);
+    startTransition(async () => {
+      const res = isEditMode
+        ? await updateAttendance(editing.date, editing.shift, fd)
+        : await createAttendance(fd);
 
-    const fd = buildFormData(dateStr, shift, roleSelections);
-
-    handleSubmit(
-      async () => {
-        const res = isEditMode
-          ? await updateAttendance(editing.date, editing.shift, fd)
-          : await createAttendance(fd);
-
-        if (res.error) {
-          setErrorMsg(res.error);
-          throw new Error(res.error);
-        }
-      },
-      { successMessage: "Presensi berhasil disimpan" },
-    );
+      if (res.error) {
+        toast.error(res.error);
+      } else {
+        toast.success("Presensi berhasil disimpan");
+        setIsDialogOpsOpen(false);
+        router.refresh();
+      }
+    });
   };
 
   return (
     <FormDialogShell
       isOpen={isDialogOpsOpen}
-      onOpenChange={handleOpenChange}
+      onOpenChange={setIsDialogOpsOpen}
       title={`${isEditMode ? "Edit" : "Tambah"} Presensi`}
       description="Input data petugas sesuai shift."
       isPending={isPending}
       submitLabel="Simpan"
-      formId={FORM_ID}
+      formId="attendance-form-id"
       contentClassName="max-h-[90vh] overflow-y-auto sm:max-w-lg"
     >
-      <form onSubmit={onFormSubmit} id={FORM_ID} className="grid gap-4">
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        id="attendance-form-id"
+        className="grid gap-4"
+      >
         <div className="flex justify-between items-end">
           <div className="flex gap-4">
             <div className="grid gap-2 col-span-2">
               <Label>Tanggal</Label>
               <Input
                 type="date"
-                value={dateStr}
-                onChange={(e) => setDateStr(e.target.value)}
+                value={watchedDate}
+                onChange={(e) => setValue("date", e.target.value)}
                 disabled={isEditMode}
                 required
               />
@@ -145,8 +175,10 @@ export function AttendanceForm({
               <Label>Shift</Label>
               <Select
                 disabled={isEditMode}
-                value={shift}
-                onValueChange={(v) => setShift(v as Shift)}
+                value={watchedShift}
+                onValueChange={(v) =>
+                  setValue("shift", v as "Pagi" | "Sore" | "Malam")
+                }
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -167,106 +199,24 @@ export function AttendanceForm({
           </Button> */}
         </div>
 
-        {roles.map((role) => (
-          <RoleCombobox
-            key={role}
-            role={role}
-            staffList={staffList}
-            selection={roleSelections[role]}
-            onSelect={(selection) =>
-              setRoleSelections((prev) => ({ ...prev, [role]: selection }))
-            }
-          />
-        ))}
+        {roles.map((role) => {
+          const filteredStaff = staffList.filter(
+            (s) => s.roles?.role_name === role && s.is_active,
+          );
+          return (
+            <InputCombobox<IStaff, AttendanceFormValues>
+              key={role}
+              control={control}
+              name={`rolesInput.${role}`}
+              label={role}
+              items={filteredStaff}
+              itemValueKey="id"
+              itemDisplayKey="staff_name"
+            />
+          );
+        })}
 
-        {errorMsg && (
-          <p className="text-destructive text-sm font-medium">{errorMsg}</p>
-        )}
       </form>
     </FormDialogShell>
   );
-}
-
-// ---------------------------------------------------------------------------
-// Sub-component
-// ---------------------------------------------------------------------------
-
-interface RoleComboboxProps {
-  role: string;
-  staffList: IStaff[];
-  selection: { id: string; name: string } | undefined;
-  onSelect: (selection: { id: string; name: string }) => void;
-}
-
-function RoleCombobox({
-  role,
-  staffList,
-  selection,
-  onSelect,
-}: RoleComboboxProps) {
-  const filtered = staffList.filter(
-    (s) => s.roles?.role_name === role && s.is_active,
-  );
-
-  return (
-    <div className="grid gap-2">
-      <Label>{role}</Label>
-      <Combobox items={filtered} modal={false}>
-        <ComboboxInput
-          placeholder={`Pilih ${role}`}
-          value={selection?.name ?? ""}
-          onChange={(e) =>
-            onSelect({ id: selection?.id ?? "", name: e.target.value })
-          }
-        />
-        <ComboboxContent>
-          <ComboboxEmpty>Petugas tidak ditemukan</ComboboxEmpty>
-          <ComboboxList>
-            {(item: IStaff) => (
-              <ComboboxItem
-                key={item.id}
-                value={item.staff_name}
-                onClick={() => onSelect({ id: item.id, name: item.staff_name })}
-              >
-                {item.staff_name}
-              </ComboboxItem>
-            )}
-          </ComboboxList>
-        </ComboboxContent>
-      </Combobox>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function buildInitialRoleSelections(
-  editing: EditingAttendance,
-  roles: string[],
-  staffList: IStaff[],
-) {
-  return Object.fromEntries(
-    roles.flatMap((role) => {
-      const staffId = editing[role];
-      if (!staffId) return [];
-      const staff = staffList.find((s) => s.id === staffId);
-      return [[role, { id: staffId, name: staff?.staff_name ?? "Petugas" }]];
-    }),
-  );
-}
-
-function buildFormData(
-  date: string,
-  shift: string,
-  roleSelections: Record<string, { id: string; name: string } | undefined>,
-) {
-  const fd = new FormData();
-  fd.append("date", date);
-  fd.append("shift", shift);
-  Object.values(roleSelections).forEach((sel) => {
-    if (sel?.id) fd.append("staff_id", sel.id);
-  });
-  return fd;
 }

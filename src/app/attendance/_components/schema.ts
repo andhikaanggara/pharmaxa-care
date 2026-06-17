@@ -8,3 +8,16 @@ export const attendanceSchema = z.object({
 });
 
 export type AttendanceSchema = z.infer<typeof attendanceSchema>;
+
+export type GroupedAttendance = {
+  id: string;
+  date: string;
+  shift: string;
+  [roleName: string]: string;
+};
+
+export type AttendanceFormData = {
+  date: string;
+  shift: string;
+  [roleIdKey: string]: string;
+};

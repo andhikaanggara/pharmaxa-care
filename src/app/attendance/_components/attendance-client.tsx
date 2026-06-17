@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Calendar, Edit3, Trash2 } from "lucide-react";
 
 // UI Components
@@ -10,32 +10,42 @@ import { SectionTable, TableColumn } from "@/components/section/section-table";
 // Actions & Types
 import type { IRole } from "@/type/role";
 import type { IStaff } from "@/type/staff";
-import { DeleteConfirmDialog } from "./detele-confirm-dialog";
 import { AttendanceForm } from "./attendance-form";
-import { AttendanceSchema } from "./schema";
+import {
+  AttendanceFormData,
+  AttendanceSchema,
+  GroupedAttendance,
+} from "./schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { IAttendanceRow } from "@/type/attendance";
 import { formatDateIndo } from "@/lib/utils/format";
+import { ConfirmDeleteDialog } from "@/components/feedback/confirm-delete-dialog";
+import { delleteAttendance } from "../actions";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 export default function AttendanceClient({
   initialAttendance,
   staffList,
   roles,
 }: {
-  initialAttendance: IAttendanceRow[];
+  initialAttendance: AttendanceSchema[];
   staffList: IStaff[];
   roles: IRole[];
 }) {
+  const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
 
   // --- UI States ---
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isAlertDeleteOpen, setIsAlertDeleteOpen] = useState(false);
+  const [isPendingDelete, startTransition] = useTransition();
 
   // --- Data States ---
-  const [selected, setSelected] = useState<any>(null);
-  const [deleteTarget, setDeleteTarget] = useState<any>(null);
+  const [selected, setSelected] = useState<AttendanceFormData | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<GroupedAttendance | null>(
+    null,
+  );
 
   useEffect(() => {
     setIsMounted(true);
@@ -48,33 +58,44 @@ export default function AttendanceClient({
   );
 
   const groupedAttendance = useMemo(() => {
-    const groups: Record<string, any> = {};
+    const groups: Record<string, GroupedAttendance> = {};
+
     initialAttendance.forEach((item) => {
-      const key = `${item.date}-${item.shift}`;
-      if (!groups[key])
-        groups[key] = { id: key, date: item.date, shift: item.shift };
+      // Kombinasi Tanggal dan Shift sebagai pengenal unik kelompok
+      const groupKey = `${item.date}-${item.shift}`;
+
+      // Jalur Logika 1: Jika kelompok belum ada di wadah, buat rumah barunya
+      if (!groups[groupKey])
+        groups[groupKey] = { id: groupKey, date: item.date, shift: item.shift };
+
+      // Jalur Logika 2: Ambil informasi staff dari map
       const staffInfo = staffMap.get(item.staff_id);
-      if (staffInfo && staffInfo.roles) {
-        const roleName = staffInfo.roles.role_name;
-        groups[key][roleName] = staffInfo.staff_name;
-        groups[key][`id_${roleName}`] = item.staff_id;
+      const roleName = staffInfo?.roles?.role_name;
+
+      // Jalur Logika 3: Jika staff punya role, masukkan ke dalam kelompok
+      if (staffInfo && roleName) {
+        // Masukkan nama staff ke kolom rolenya (Misal: Apoteker = "Andi")
+        groups[groupKey][roleName] = staffInfo.staff_name;
+        // Masukkan ID staff untuk kebutuhan interaksi UI (Misal: id_Apoteker = 5)
+        groups[groupKey][`id_${roleName}`] = item.staff_id;
       }
     });
+
     return Object.values(groups).sort((a, b) => b.date.localeCompare(a.date));
   }, [initialAttendance, staffMap]);
 
-  const HEADER: TableColumn<any>[] = [
+  const HEADER: TableColumn<GroupedAttendance>[] = [
     {
       header: "Date",
       accessor: (d) => formatDateIndo(d.date),
     },
     {
       header: "Shift",
-      accessor: "shift",
+      accessor: (d) => d.shift,
     },
     ...roles.map((role) => ({
       header: role.role_name,
-      accessor: (d: any) => d[role.role_name] || "-",
+      accessor: (d: GroupedAttendance) => d[role.role_name] || "-",
     })),
   ];
 
@@ -83,7 +104,7 @@ export default function AttendanceClient({
     setIsFormOpen(true);
   };
 
-  const handleEdit = (row: any) => {
+  const handleEdit = (row: GroupedAttendance) => {
     const formData = {
       date: row.date,
       shift: row.shift,
@@ -92,14 +113,14 @@ export default function AttendanceClient({
           acc[role.role_name] = row[`id_${role.role_name}`];
           return acc;
         },
-        {} as Record<string, any>,
+        {} as Record<string, string>,
       ),
     };
     setSelected(formData);
     setIsFormOpen(true);
   };
 
-  const handleDeleteTrigger = (att: AttendanceSchema) => {
+  const handleDeleteTrigger = (att: GroupedAttendance) => {
     setDeleteTarget(att);
     setIsAlertDeleteOpen(true);
   };
@@ -121,50 +142,45 @@ export default function AttendanceClient({
         header={HEADER}
         onEdit={handleEdit}
         onDelete={handleDeleteTrigger}
-        mobileRender={() => (
-          <div className="grid grid-cols-1 gap-4 md:hidden overflow-auto max-h-full relative">
-            {groupedAttendance.map((row) => (
-              <div
-                key={row.id}
-                className="bg-background rounded-xl shadow-sm space-y-3"
+        mobileRender={(row: GroupedAttendance) => (
+          <div
+            key={row.id}
+            className="bg-background rounded-xl shadow-sm space-y-3"
+          >
+            <div className="flex justify-between items-center border-b pb-2">
+              <div className="font-bold">{formatDateIndo(row.date)}</div>
+              <Badge variant="secondary">{row.shift}</Badge>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              {roles.map(({ role_name }) => (
+                <div key={role_name} className="flex flex-col">
+                  <span className="text-muted-foreground text-[10px] uppercase">
+                    {role_name}
+                  </span>
+                  <span className="font-medium truncate">
+                    {row[role_name] || "-"}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => handleEdit(row)}
               >
-                <div className="flex justify-between items-center border-b pb-2">
-                  <div className="font-bold">{formatDateIndo(row.date)}</div>
-                  <Badge>{row.shift}</Badge>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  {roles.map(({ role_name }) => (
-                    <div key={role_name} className="flex flex-col">
-                      <span className="text-muted-foreground text-[10px] uppercase">
-                        {role_name}
-                      </span>
-                      <span className="font-medium truncate">
-                        {row[role_name] || "-"}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex gap-2 pt-2">
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => handleEdit(row)}
-                  >
-                    <Edit3 className="h-4 w-4 mr-2" /> Edit
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    className="flex-1"
-                    onClick={() => {
-                      setDeleteTarget(row);
-                      setIsAlertDeleteOpen(true);
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" /> Hapus
-                  </Button>
-                </div>
-              </div>
-            ))}
+                <Edit3 className="h-4 w-4 mr-2" /> Edit
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex-1"
+                onClick={() => {
+                  handleDeleteTrigger(row);
+                }}
+              >
+                <Trash2 className="h-4 w-4 mr-2" /> Hapus
+              </Button>
+            </div>
           </div>
         )}
       />
@@ -179,10 +195,32 @@ export default function AttendanceClient({
       />
 
       {/* Delete Alert */}
-      <DeleteConfirmDialog
-        isAlertDeleteOpen={isAlertDeleteOpen}
-        setIsAlertDeleteOpen={setIsAlertDeleteOpen}
-        deleteTarget={deleteTarget}
+      <ConfirmDeleteDialog
+        isOpen={isAlertDeleteOpen}
+        onOpenChange={setIsAlertDeleteOpen}
+        entityName="Presensi"
+        itemName={
+          deleteTarget
+            ? `${formatDateIndo(deleteTarget.date)} - Shift ${deleteTarget.shift}`
+            : ""
+        }
+        isPending={isPendingDelete}
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          startTransition(async () => {
+            const res = await delleteAttendance(
+              deleteTarget.date,
+              deleteTarget.shift,
+            );
+            if (res.error) {
+              toast.error(res.error);
+            } else {
+              setIsAlertDeleteOpen(false);
+              router.refresh();
+              toast.success("Presensi berhasil dihapus");
+            }
+          });
+        }}
       />
     </div>
   );
